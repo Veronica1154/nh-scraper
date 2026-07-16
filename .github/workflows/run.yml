@@ -1,0 +1,66 @@
+name: Job Scraper
+on:
+  schedule:
+    # Every 10 minutes, weekdays only, 9am–7pm UK time (= UTC hours 8–17
+    # during BST; runs an hour earlier in local time during GMT/winter).
+    # Public-repo Actions minutes are unlimited, so cost isn't an issue —
+    # this is just to avoid useless overnight/weekend runs when no jobs post.
+    # workflow_dispatch is kept so cron-job.org can be plugged in later if
+    # GitHub scheduling becomes unreliable again.
+    - cron: "*/10 8-17 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Only one Job Scraper run at a time. If cron-job.org fires while the previous
+# run is still going, the new one waits in queue (cancel-in-progress: false).
+# This prevents two runs from both trying to commit jobs.txt and racing.
+concurrency:
+  group: job-scraper
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run scraper
+        env:
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # Optional: only needed if jobs.nhs.uk ever blocks GitHub's IPs.
+          # Leave the secret unset and the scraper fetches directly (free path).
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        run: python job_monitor.py
+
+      - name: Commit updated state
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          # Stage jobs.txt only if non-empty (don't commit a wiped file).
+          if [ -s "jobs.txt" ]; then
+            git add jobs.txt
+          fi
+          # Stage the failure-state flag file. -A picks up additions AND
+          # deletions, so this commits "started failing" and "recovered"
+          # transitions equally well.
+          git add -A .scraper_failing 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "No state changes to commit"
+          else
+            git commit -m "Update tracker state"
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+            git pull --rebase origin main
+            git push origin HEAD:${{ github.ref }}
+          fi
