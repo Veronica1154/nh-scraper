@@ -40,8 +40,10 @@ MAX_PAGES = 40
 # Senior grades — filtered out of notifications (but still tracked).
 # Match is a case-insensitive substring on the job title.
 EXCLUDE_TITLES = [
-    "consultant",          # also catches "GP Consultant"
-    "specialist",          # catches "Specialist" (SAS) and "Associate Specialist"
+    "consultant",
+    "practitioner",
+    "clinical lead",
+    "associate specialist",
     "gp principal",
     "gp partner",
     "clinical director",
