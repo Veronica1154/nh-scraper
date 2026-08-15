@@ -37,22 +37,78 @@ SEED_PAGES = 10
 # Safety cap on pages walked in a single run.
 MAX_PAGES = 40
 
-# Senior grades — filtered out of notifications (but still tracked).
-# Match is a case-insensitive substring on the job title.
-EXCLUDE_TITLES = [
-    "consultant",
-    "practitioner",
-    "clinical lead",
-    "associate specialist",
-    "gp principal",
-    "gp partner",
-    "clinical director",
-    "medical director",
+# ── Relevance filter ──────────────────────────────────────────────────────────
+# NHS Jobs' own staffGroup=MEDICAL_AND_DENTAL feed is LEAKY: employers mis-tag
+# postings, so nursing/paramedic/HCA/dental roles come through it. Measured
+# 2026-08-15: 14 of 30 listings on the first three pages were not doctor posts.
+# So we cannot rely on the site's filter and must screen titles ourselves.
+#
+# Two stages, both case-insensitive substring matches on the job title:
+#   1. NOT_A_DOCTOR_JOB  -> wrong profession entirely, or a grade above target.
+#   2. WANTED_ROLE       -> at least one positive signal must be present.
+# Everything filtered out is still recorded in jobs.txt so it is never
+# re-examined; it just does not generate a Telegram alert.
+
+# Wrong profession. Ordered roughly by how often they appeared in the feed.
+NOT_A_DOCTOR_JOB = [
+    "nurse", "nursing", "paramedic", "healthcare assistant", "health care assistant",
+    "midwife", "midwifery", "pharmacist", "pharmacy", "physiotherap", "occupational therap",
+    "speech and language", "dietitian", "dietician", "radiograph", "sonograph",
+    "psychologist", "psychotherap", "counsellor", "operating department practitioner",
+    "physician associate", "physician assistant", "dental", "dentist", "orthodontic",
+    "dental officer", "dental therapist", "hygienist", "optometrist", "podiatrist",
+    "chiropodist", "audiolog", "phlebotom", "porter", "receptionist", "administrator",
+    "secretary", "manager", "technician", "scientist", "assistant practitioner",
 ]
 
+# Grades above what she is applying for.
+TOO_SENIOR = [
+    "consultant", "specialty doctor", "speciality doctor", "specialist doctor",
+    "associate specialist", "gp principal", "gp partner", "salaried gp",
+    "clinical director", "medical director", "clinical lead", "lead clinician",
+    "head of service", "chief ", "deputy director",
+]
+
+# Positive signals. A title must contain at least one of these to alert.
+# Covers SHO/trust-grade through senior fellow and ST3+, any specialty, plus
+# teaching and research fellowships (user's selection, 2026-08-15).
+WANTED_ROLE = [
+    "trust grade", "trust doctor", "trust registrar", "clinical fellow",
+    "junior clinical fellow", "senior clinical fellow", "teaching fellow",
+    "research fellow", "clinical research fellow", "fellowship",
+    "locally employed doctor", " led ", "resident doctor", "resident medical officer",
+    "senior house officer", " sho ", "(sho", "foundation year", "fy1", "fy2",
+    "st1", "st2", "st3", "st4", "st5", "st6", "str ", "specialty registrar",
+    "speciality registrar", "specialty trainee", "registrar", "junior doctor",
+    "medical officer", "staff grade", "clinical teaching fellow",
+    # Broad catch-alls, safe because wrong-profession and too-senior titles are
+    # already rejected above: e.g. "Specialty Doctor" is blocked before this,
+    # but "Bank Doctor in Emergency Medicine" and "Fellow in Acute Medicine"
+    # would otherwise be missed entirely.
+    "doctor", "fellow",
+]
+
+
+def _has(title_lower, needles):
+    return any(n in title_lower for n in needles)
+
+
 def is_excluded(title: str) -> bool:
-    title_lower = title.lower()
-    return any(word in title_lower for word in EXCLUDE_TITLES)
+    """True if this job should NOT generate a Telegram alert."""
+    t = " " + title.lower().strip() + " "
+
+    # "Dental Officer for Prisons", "Registered Nurse/Paramedic - Staines".
+    if _has(t, NOT_A_DOCTOR_JOB):
+        return True
+    if _has(t, TOO_SENIOR):
+        return True
+    # Require a positive signal so unrecognised, non-doctor titles (e.g. plain
+    # "Nurse", "Bank Support Worker") cannot slip through on absence of a
+    # blocklist hit alone.
+    if not _has(t, WANTED_ROLE):
+        return True
+    return False
+
 
 # ── Page fetching ─────────────────────────────────────────────────────────────
 def fetch_html(url: str):
