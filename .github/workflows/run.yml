@@ -10,13 +10,16 @@ name: Job Scraper
 # Low-frequency crons are fired reliably, so we book TWO runs a day and each
 # one stays alive polling every POLL_SECONDS. Public repos have unlimited
 # Actions minutes, so ~12h/day of runner time is free.
-#   morning block  07:05 UTC -> ~12:55 UTC
-#   afternoon block 13:05 UTC -> ~18:55 UTC
-# Together that covers 08:00-19:55 UK time in summer (BST), 07:00-18:55 in winter.
+#   morning block   08:00 UTC -> 12:55 UTC
+#   afternoon block 13:00 UTC -> 17:55 UTC
+# Target coverage is 9am-6pm UK time. Cron is UTC and the UK moves with BST,
+# so this window is chosen to hold in BOTH halves of the year:
+#   summer (BST, UTC+1): 09:00-13:55 and 14:00-18:55 UK
+#   winter (GMT, = UTC):  08:00-12:55 and 13:00-17:55 UK
 on:
   schedule:
-    - cron: "5 7 * * 1-5"
-    - cron: "5 13 * * 1-5"
+    - cron: "0 8 * * 1-5"
+    - cron: "0 13 * * 1-5"
   workflow_dispatch:
     inputs:
       single_pass:
@@ -65,7 +68,7 @@ jobs:
           POLL_SECONDS: "300"
           # Leave headroom under the 355-minute timeout so the last cycle and
           # its commit always finish cleanly.
-          BLOCK_MINUTES: "345"
+          BLOCK_MINUTES: "295"
           SINGLE_PASS: ${{ github.event_name == 'workflow_dispatch' && inputs.single_pass || 'false' }}
         run: |
           set -u
