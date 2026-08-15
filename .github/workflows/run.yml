@@ -62,7 +62,7 @@ jobs:
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
-          POLL_SECONDS: "600"
+          POLL_SECONDS: "300"
           # Leave headroom under the 355-minute timeout so the last cycle and
           # its commit always finish cleanly.
           BLOCK_MINUTES: "345"
