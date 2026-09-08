@@ -25,7 +25,7 @@ on:
       single_pass:
         description: "Run once and exit (for manual testing)"
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
