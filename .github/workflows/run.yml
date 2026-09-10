@@ -82,9 +82,10 @@ jobs:
             # A crash in one cycle must not kill the whole block.
             python job_monitor.py || echo "scraper exited non-zero; continuing"
 
-            # Commit state exactly as before: jobs.txt only if non-empty,
+            # Persist seen IDs and the public filtered application feed together,
             # plus additions AND deletions of the failure flag.
             if [ -s "jobs.txt" ]; then git add jobs.txt; fi
+            if [ -s "filtered_jobs.json" ]; then git add filtered_jobs.json; fi
             git add -A .scraper_failing 2>/dev/null || true
             if git diff --cached --quiet; then
               echo "no state change"

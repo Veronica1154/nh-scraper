@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
+from application_feed import save_filtered_jobs
 
 TELEGRAM_TOKEN   = os.environ["TELEGRAM_TOKEN"]
 TELEGRAM_CHAT_ID = os.environ["TELEGRAM_CHAT_ID"]
@@ -317,6 +318,10 @@ def monitor():
 
     notification_jobs = [job for job in new_jobs if not is_excluded(job["Title"])]
     senior_filtered = len(new_jobs) - len(notification_jobs)
+
+    # Export exactly the existing Telegram selection, before advancing seen IDs.
+    # A failed write must leave jobs eligible for retry on the next cycle.
+    save_filtered_jobs(notification_jobs)
 
     if notification_jobs:
         print(f"Notifying about {len(notification_jobs)} non-senior job(s) "
